@@ -331,3 +331,31 @@
 --FROM Eight_Week_Challenge_2..customer_orders AS customer_orders
 --	LEFT JOIN Eight_Week_Challenge_2..runner_orders AS runner_orders ON runner_orders.order_id = customer_orders.order_id
 --	LEFT JOIN Eight_Week_Challenge_2..pizza_names AS pizza_names ON pizza_names.pizza_id = customer_orders.pizza_id
+
+/* --------------------
+    E. Bonus Questions
+   --------------------*/
+
+-- If Danny wants to expand his range of pizzas - how would this impact the existing data design? 
+-- Write an INSERT statement to demonstrate what would happen if a new Supreme pizza with all the toppings was added 
+-- to the Pizza Runner menu?
+
+-- If we want to add a supreme pizza with all the toppings then, we need to do the following in order
+-- for the database to remain consistent:
+-- 1) Add the pizza into the pizza_names table with pizza_id as 3 and pizza_name as supreme
+-- 2) Now we need to add the toppings information in the pizza_recipes table with pizza_id as 3 and toppings as
+-- 1,2,3,4,5,6,7,8,9,10,11,12
+
+--INSERT INTO pizza_names
+--	("pizza_id", "pizza_name")
+--VALUES(3, 'Supreme');
+
+--INSERT INTO pizza_recipes
+--	("pizza_id", "toppings")
+--VALUES(3, '1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12');
+
+
+
+
+
+

@@ -167,8 +167,7 @@ FROM Eight_Week_Challenge_2..runner_orders
 WHERE cancellation IS NULL
 ORDER BY runner_id, order_id
 
--- Trend Observed: As each runner proceeds to the next order, 
--- the avergae speed more or less increases for the next order
+-- Trend Observed: As each runner proceeds to the next order, the avergae speed more or less increases for the next order
 
 -- 7. What is the successful delivery percentage for each runner?
 
@@ -244,10 +243,10 @@ FROM Eight_Week_Challenge_2..customer_orders AS customer_orders
 
 DROP TABLE IF EXISTS Eight_Week_Challenge_2.dbo.runner_ratings;
 CREATE TABLE Eight_Week_Challenge_2.dbo.runner_ratings (
-  "order_id" INTEGER,
-  "customer_id" INTEGER, 
-  "runner_id" INTEGER, 
-  "rating" INTEGER
+ "order_id" INTEGER,
+ "customer_id" INTEGER, 
+ "runner_id" INTEGER, 
+ "rating" INTEGER
 );
 
 INSERT INTO Eight_Week_Challenge_2.dbo.runner_ratings

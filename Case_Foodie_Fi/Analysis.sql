@@ -192,7 +192,7 @@ SELECT 'Churn' AS Plan_Type,
 			END)*1.0/COUNT(CASE WHEN plan_id =0 THEN 1 ELSE NULL END))*100) AS DECIMAL(18,0)) AS plan_percentage
 FROM after_free_trial_plan
 UNION
-SELECT 'Basic Monthly' AS Plan_Type, 
+SELECT 'Basic - Monthly' AS Plan_Type, 
 	COUNT(CASE 
 			WHEN plan_id = 0 AND plan_after_free_trial = 1
 				THEN 1 
@@ -207,7 +207,7 @@ SELECT 'Basic Monthly' AS Plan_Type,
 			END)*1.0/COUNT(CASE WHEN plan_id =0 THEN 1 ELSE NULL END))*100) AS DECIMAL(18,0)) AS plan_percentage
 FROM after_free_trial_plan
 UNION
-SELECT 'Pro Monthly' AS Plan_Type, 
+SELECT 'Pro - Monthly' AS Plan_Type, 
 	COUNT(CASE 
 			WHEN plan_id = 0 AND plan_after_free_trial = 2
 				THEN 1 
@@ -222,7 +222,7 @@ SELECT 'Pro Monthly' AS Plan_Type,
 			END)*1.0/COUNT(CASE WHEN plan_id =0 THEN 1 ELSE NULL END))*100) AS DECIMAL(18,0)) AS plan_percentage
 FROM after_free_trial_plan
 UNION
-SELECT 'Pro Anually' AS Plan_Type, 
+SELECT 'Pro - Annually' AS Plan_Type, 
 	COUNT(CASE 
 			WHEN plan_id = 0 AND plan_after_free_trial = 3
 				THEN 1 
@@ -236,3 +236,113 @@ SELECT 'Pro Anually' AS Plan_Type,
 				NULL 
 			END)*1.0/COUNT(CASE WHEN plan_id =0 THEN 1 ELSE NULL END))*100) AS DECIMAL(18,0)) AS plan_percentage
 FROM after_free_trial_plan
+
+-- 7. What is the number and percentage of customer plans after their initial free trial?
+
+SELECT 
+	'Churn' AS plan_type, 
+	COUNT(CASE WHEN subscriptions.plan_id = 4 THEN 1 ELSE NULL END) AS plan_count,
+	CAST(((COUNT(CASE WHEN subscriptions.plan_id = 4 THEN 1 ELSE NULL END)*1.0/
+	COUNT(subscriptions.customer_id))*100) AS DECIMAL(18,2)) AS plan_percentage
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.plan_id !=0
+UNION
+SELECT 
+	'Basic-Monthly' AS plan_type,  
+	COUNT(CASE WHEN subscriptions.plan_id = 1 THEN 1 ELSE NULL END) AS plan_count,
+	CAST(((COUNT(CASE WHEN subscriptions.plan_id = 1 THEN 1 ELSE NULL END)*1.0/
+	COUNT(subscriptions.customer_id))*100) AS DECIMAL(18,2)) AS plan_percentage
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.plan_id !=0
+UNION
+SELECT 
+	'Pro-Monthly' AS plan_type, 
+	COUNT(CASE WHEN subscriptions.plan_id = 2 THEN 1 ELSE NULL END) AS plan_count,
+	CAST(((COUNT(CASE WHEN subscriptions.plan_id = 2 THEN 1 ELSE NULL END)*1.0/
+	COUNT(subscriptions.customer_id))*100) AS DECIMAL(18,2)) AS plan_percentage
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.plan_id !=0
+UNION
+SELECT 
+	'Pro-Annual' AS plan_type,  
+	COUNT(CASE WHEN subscriptions.plan_id = 3 THEN 1 ELSE NULL END) AS plan_count,
+	CAST(((COUNT(CASE WHEN subscriptions.plan_id = 3 THEN 1 ELSE NULL END)*1.0/
+	COUNT(subscriptions.customer_id))*100) AS DECIMAL(18,2)) AS plan_percentage
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.plan_id !=0
+
+-- 8. How many customers have upgraded to an annual plan in 2020?
+
+-- Using a simple count
+
+--SELECT COUNT(CASE WHEN subscriptions.plan_id = 3 THEN 1 ELSE NULL END) AS annual_plan_upgraded_people
+--FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+--	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+--WHERE subscriptions.start_date > '2020-01-01' AND subscriptions.start_date < '2020-12-31'
+
+-- Using CTE and Window Functions
+WITH next_plan(customer_id, plan_id, start_date, next_plan_id)
+AS
+(
+SELECT 
+	subscriptions.customer_id, 
+	subscriptions.plan_id, 
+	subscriptions.start_date,
+	LEAD(subscriptions.plan_id) OVER (PARTITION BY subscriptions.customer_id ORDER BY subscriptions.start_date ASC) AS next_plan_id
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.start_date > '2020-01-01' AND subscriptions.start_date < '2020-12-31'
+)
+
+SELECT 
+	COUNT(CASE WHEN plan_id = 0 AND next_plan_id = 3 THEN 1 ELSE NULL END) AS from_free_to_annual, 
+	COUNT(CASE WHEN plan_id = 1 AND next_plan_id = 3 THEN 1 ELSE NULL END) AS from_basic_to_annual, 
+	COUNT(CASE WHEN plan_id = 2 AND next_plan_id = 3 THEN 1 ELSE NULL END) AS from_pro_monthly_to_annual 
+FROM next_plan
+
+-- 9. How many days on average does it take for a customer to an annual plan from the day they join Foodie-Fi?
+
+WITH last_plan(customer_id, start_date, last_plan_id)
+AS
+(
+
+SELECT 
+	customer_id, 
+	start_date,
+	MAX(subscriptions.plan_id) OVER(PARTITION BY subscriptions.customer_id) AS last_plan_id	
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.plan_id IN (0,1,2,3)
+)
+
+SELECT AVG(temp.day_diff) AS average_days_for_annual_upgradation
+FROM
+(
+SELECT customer_id, DATEDIFF(day, MIN(start_date), MAX(start_date)) AS day_diff
+FROM last_plan
+WHERE last_plan_id = 3
+GROUP BY customer_id
+) AS temp
+
+-- 11. How many customers downgraded from a pro monthly to a basic monthly plan in 2020?
+
+WITH next_plan(customer_id, plan_id, start_date, next_plan_id)
+AS
+(
+SELECT 
+	subscriptions.customer_id, 
+	subscriptions.plan_id, 
+	subscriptions.start_date,
+	LEAD(subscriptions.plan_id) OVER (PARTITION BY subscriptions.customer_id ORDER BY subscriptions.start_date ASC) AS next_plan_id
+FROM Eight_Week_Challenge_3..subscriptions AS subscriptions
+	LEFT JOIN Eight_Week_Challenge_3..plans AS plans ON plans.plan_id = subscriptions.plan_id
+WHERE subscriptions.start_date > '2020-01-01' AND subscriptions.start_date < '2020-12-31'
+)
+
+SELECT COUNT(*) AS required_number
+FROM next_plan
+WHERE plan_id = 2 AND next_plan_id = 1

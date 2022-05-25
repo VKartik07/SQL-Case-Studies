@@ -36,4 +36,5 @@ To provide a more optimized and efficient solution for any of the sections/quest
 -   `git push caseStudyName-sectionName-questionNumber`
 -   Open a pull request :)
 
-<br />
+## Credits
+- [8-Week SQL Challenge](https://8weeksqlchallenge.com/)

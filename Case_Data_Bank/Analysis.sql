@@ -179,5 +179,198 @@ FROM Eight_Week_Challenge_4..customer_nodes
 GROUP BY region_id
 ORDER BY region_id
 
+/* --------------------
+ B. Customer Transactions
+   --------------------*/
 
+-- 1. What is the unique count and total amount for each transaction type?
+SELECT 
+	txn_type, 
+	COUNT(DISTINCT customer_id) AS unique_customer_count, 
+	SUM(txn_amount) AS total_amount
+FROM Eight_Week_Challenge_4..customer_transactions
+GROUP BY txn_type
 
+-- 2. What is the average total historical deposit counts and amounts for all customers?
+SELECT 
+	customer_id, 
+	COUNT(customer_id) AS depsoits_count, 
+	AVG(txn_amount) AS average_deposits
+FROM Eight_Week_Challenge_4..customer_transactions
+WHERE txn_type = 'deposit'
+GROUP BY customer_id
+ORDER BY customer_id
+
+-- 3. For each month - how many Data Bank customers make more than 1 deposit and 
+-- either 1 purchase or 1 withdrawal in a single month?
+
+CREATE FUNCTION deposits_category_count(@month_number INT)
+RETURNS INT
+AS
+BEGIN
+	DECLARE @deposit_count INT;
+	WITH month_transactions(customer_id, txn_type, month) AS
+	(
+	SELECT 
+		customer_id, 
+		txn_type, 
+		DATEPART(month, txn_date) AS month
+	FROM Eight_Week_Challenge_4..customer_transactions
+	), deposits_count_month(customer_id, txn_type, month, deposit_counts_by_month) AS
+	(
+	SELECT 
+		customer_id, 
+		txn_type, 
+		month, 
+		COUNT(customer_id) OVER(PARTITION BY month, customer_id) AS deposit_counts_by_month
+	FROM month_transactions
+	WHERE txn_type = 'deposit'
+	)
+	SELECT @deposit_count = COUNT(DISTINCT customer_id) 
+							FROM deposits_count_month
+							WHERE deposit_counts_by_month >=2 AND month = @month_number
+							
+	RETURN @deposit_count
+END
+
+CREATE FUNCTION other_category_counts(@month_number INT)
+RETURNS INT
+AS
+BEGIN
+DECLARE @other_count INT;
+WITH month_transactions(customer_id, txn_type, month) AS
+	(
+	SELECT 
+		customer_id, 
+		txn_type, 
+		DATEPART(month, txn_date) AS month
+	FROM Eight_Week_Challenge_4..customer_transactions
+	), purchase_withdrawl_count(customer_id, txn_type, month, counts_by_month) AS
+	(
+	SELECT 
+		customer_id, 
+		txn_type, 
+		month, 
+		COUNT(customer_id) OVER(PARTITION BY month, customer_id) AS counts_by_month
+	FROM month_transactions
+	WHERE txn_type = 'purchase' OR txn_type = 'withdrawal'
+	)
+	SELECT @other_count = COUNT(customer_id)
+						  FROM purchase_withdrawl_count
+						  WHERE counts_by_month = 1 AND month = @month_number
+	RETURN @other_count
+END
+
+SELECT
+	temp.month_number, 
+	CASE
+		WHEN 
+			temp.month_number IS NOT NULL
+				THEN dbo.deposits_category_count(temp.month_number)
+		ELSE NULL
+	END AS deposits_count, 
+	CASE
+		WHEN 
+			temp.month_number IS NOT NULL
+				THEN dbo.other_category_counts(temp.month_number)
+		ELSE NULL
+	END AS purchase_withdrawal_count
+FROM
+(
+SELECT 
+	DATEPART(month, txn_date) AS month_number
+FROM Eight_Week_Challenge_4..customer_transactions
+) AS temp
+GROUP BY temp.month_number
+ORDER BY month_number
+
+-- 4. What is the closing balance for each customer at the end of the month?
+
+WITH amount_before_cal(customer_id, month_number, txn_type, txn_amount) AS
+(
+SELECT 
+	customer_id, 
+	DATEPART(month, txn_date) AS month_number, 
+	txn_type, 
+	CASE
+		WHEN txn_type = 'deposit'
+			THEN txn_amount
+		ELSE
+			-1*txn_amount
+	END AS txn_amount
+FROM Eight_Week_Challenge_4..customer_transactions
+)
+
+SELECT 
+	DISTINCT customer_id, 
+	month_number, 
+	SUM(txn_amount) OVER(PARTITION BY month_number, customer_id) AS closing_balance
+FROM amount_before_cal
+
+-- 5. What is the percentage of customers who increase their closing balance by more than 5%?
+
+WITH amount_before_cal(customer_id, month_number, txn_type, txn_amount) AS
+(
+SELECT 
+	customer_id, 
+	DATEPART(month, txn_date) AS month_number, 
+	txn_type, 
+	CASE
+		WHEN txn_type = 'deposit'
+			THEN txn_amount
+		ELSE
+			-1*txn_amount
+	END AS txn_amount
+FROM Eight_Week_Challenge_4..customer_transactions
+), closing_balance_month(customer_id, month_number, closing_balance) AS
+(
+SELECT 
+	DISTINCT customer_id, 
+	month_number, 
+	SUM(txn_amount) OVER(PARTITION BY month_number, customer_id) AS closing_balance
+FROM amount_before_cal
+), last_month_balance(customer_id, month_number, last_closing_balance) AS
+(
+SELECT 
+	DISTINCT closing_balance_month.customer_id, 
+	closing_balance_month.month_number, 
+	closing_balance_month.closing_balance
+FROM
+(
+SELECT 
+	customer_id, 
+	month_number, 
+	closing_balance, 
+	MAX(month_number) OVER(PARTITION BY customer_id) AS last_month
+FROM closing_balance_month
+) AS temp
+	INNER JOIN closing_balance_month ON closing_balance_month.customer_id = temp.customer_id AND 
+			   closing_balance_month.month_number = temp.last_month 
+), first_month_balance(customer_id, month_number, first_closing_balance) AS
+(
+SELECT 
+	DISTINCT closing_balance_month.customer_id, 
+	closing_balance_month.month_number, 
+	closing_balance_month.closing_balance
+FROM
+(
+SELECT 
+	customer_id, 
+	month_number, 
+	closing_balance, 
+	MIN(month_number) OVER(PARTITION BY customer_id) AS first_month
+FROM closing_balance_month
+) AS temp
+	INNER JOIN closing_balance_month ON closing_balance_month.customer_id = temp.customer_id AND 
+			   closing_balance_month.month_number = temp.first_month 
+)
+
+SELECT  
+	CONCAT(CAST((SUM(CASE
+		WHEN first_month_balance.first_closing_balance * 1.05 < last_month_balance.last_closing_balance
+			THEN 1
+		ELSE NULL
+	END)*1.0 / COUNT(DISTINCT first_month_balance.customer_id))*100 AS DECIMAL(18,2)), '%') AS required_percentage
+FROM first_month_balance
+	INNER JOIN last_month_balance ON first_month_balance.customer_id = last_month_balance.customer_id
+ 

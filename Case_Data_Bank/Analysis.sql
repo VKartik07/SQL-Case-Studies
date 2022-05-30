@@ -374,3 +374,88 @@ SELECT
 FROM first_month_balance
 	INNER JOIN last_month_balance ON first_month_balance.customer_id = last_month_balance.customer_id
  
+
+/* --------------------
+ C. Data Allocation Challenge
+   --------------------*/
+
+-- 1. running customer balance column that includes the impact at each transaction
+
+WITH amount_calc(customer_id, txn_date, txn_type, txn_amount) AS
+(
+SELECT 
+	customer_id, 
+	txn_date, 
+	txn_type, 
+	CASE
+		WHEN txn_type = 'deposit'
+			THEN txn_amount
+		ELSE	
+			txn_amount*-1
+	END AS txn_amount
+FROM Eight_Week_Challenge_4..customer_transactions
+)
+
+SELECT 
+	customer_id, 
+	txn_date, 
+	txn_type, 
+	txn_amount, 
+	SUM(txn_amount) OVER(PARTITION BY customer_id ORDER BY txn_date ASC) AS running_customer_balance
+FROM amount_calc
+
+-- 2. customer balance at the end of each month
+
+WITH month_amount_calc(customer_id, month_number, txn_type, txn_amount) AS
+(
+SELECT 
+	customer_id, 
+	DATEPART(month, txn_date) AS month_number, 
+	txn_type, 
+	CASE
+		WHEN txn_type = 'deposit'
+			THEN txn_amount
+		ELSE	
+			txn_amount*-1
+	END AS txn_amount
+FROM Eight_Week_Challenge_4..customer_transactions
+)
+
+SELECT 
+	DISTINCT customer_id, 
+	month_number, 
+	SUM(txn_amount) OVER(PARTITION BY month_number, customer_id) AS month_end_balance
+FROM month_amount_calc
+
+-- 3. minimum, average and maximum values of the running balance for each customer
+
+WITH amount_calc(customer_id, txn_date, txn_type, txn_amount) AS
+(
+SELECT 
+	customer_id, 
+	txn_date, 
+	txn_type, 
+	CASE
+		WHEN txn_type = 'deposit'
+			THEN txn_amount
+		ELSE	
+			txn_amount*-1
+	END AS txn_amount
+FROM Eight_Week_Challenge_4..customer_transactions
+), running_balance(customer_id, txn_date, txn_type, txn_amount, running_customer_balance) AS
+(
+SELECT 
+	customer_id, 
+	txn_date, 
+	txn_type, 
+	txn_amount, 
+	SUM(txn_amount) OVER(PARTITION BY customer_id ORDER BY txn_date ASC) AS running_customer_balance
+FROM amount_calc
+)
+
+SELECT 
+	DISTINCT customer_id, 
+	MAX(running_customer_balance) OVER(PARTITION BY customer_id) AS max_running_balance, 
+	MIN(running_customer_balance) OVER(PARTITION BY customer_id) AS min_running_balance,
+	AVG(running_customer_balance) OVER(PARTITION BY customer_id) AS avg_running_balance
+FROM running_balance

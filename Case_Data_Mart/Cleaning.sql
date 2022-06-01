@@ -41,7 +41,6 @@
 
 -- 8. Generate a new avg_transaction column as the sales value divided by transactions rounded to 2 decimal places 
 -- for each record
-
 WITH date_detailed(region, 
 	platform, 
 	segment, 
@@ -71,7 +70,7 @@ SELECT
 	END AS month, 
 	CONCAT('20', SUBSTRING(week_date, CHARINDEX('/', week_date, CHARINDEX('/', week_date)+1)+1, LEN(week_date) - CHARINDEX('/', week_date, CHARINDEX('/', week_date)+1))) AS year
 FROM Eight_Week_Challenge_5..weekly_sales
-), clean_sales(week_date, week_number, month_number, calendar_year, age_band, demographic_band, avg_transaction) AS
+), clean_sales(week_date, week_number, month_number, calendar_year, region, platform, customer_type, age_band, demographic_band, transactions, sales, avg_transaction) AS
 (
 SELECT 
 	CONCAT(year, '-', month, '-', day) AS week_date,
@@ -89,6 +88,9 @@ SELECT
 	END AS week_number, 
 	month AS month_number, 
 	year AS calendar_year, 
+	LOWER(region) AS region, 
+	LOWER(platform) AS platform, 
+	LOWER(customer_type) AS customer_type,
 	CASE 
 			WHEN SUBSTRING(segment, 2, 1) = '1'
 				THEN 'Young Adults'
@@ -107,10 +109,12 @@ SELECT
 			ELSE
 				'unknown'
 	END AS demographic_band, 
+	transactions, 
+	sales, 
 	CAST(sales * 1.0/transactions AS DECIMAL(18,2)) AS avg_transaction
 FROM date_detailed
 )
 
 SELECT *
 INTO clean_weekly_sales 
-FROM date_detailed
+FROM clean_sales
